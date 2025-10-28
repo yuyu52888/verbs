@@ -75,6 +75,24 @@
             background: #cbd5e0;
         }
         
+        .btn-danger {
+            background: #e53e3e;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #c53030;
+        }
+        
+        .btn-warning {
+            background: #ed8936;
+            color: white;
+        }
+        
+        .btn-warning:hover {
+            background: #dd6b20;
+        }
+        
         .setting-group {
             margin: 15px 0;
         }
@@ -149,6 +167,16 @@
             flex: 1;
         }
         
+        .nav-controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .nav-controls .btn {
+            flex: 1;
+        }
+        
         .progress {
             text-align: center;
             color: #718096;
@@ -166,6 +194,19 @@
             cursor: pointer;
             color: #667eea;
             margin-left: 10px;
+        }
+        
+        .favorite-btn {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #e53e3e;
+            margin-left: 10px;
+        }
+        
+        .favorite-btn.active {
+            color: #e53e3e;
         }
         
         .correct {
@@ -196,6 +237,11 @@
             font-size: 12px;
             z-index: 1000;
         }
+        
+        .favorite-star {
+            color: #e53e3e;
+            margin-left: 5px;
+        }
     </style>
 </head>
 <body>
@@ -208,6 +254,7 @@
             <h1>日文單字學習</h1>
             <button class="btn" onclick="app.showScreen('quizSetup')">測驗模式</button>
             <button class="btn" onclick="app.showScreen('studySetup')">背誦模式</button>
+            <button class="btn btn-secondary" onclick="app.showScreen('favoriteScreen')">收藏單字</button>
             <button class="btn btn-secondary" onclick="app.showScreen('progressScreen')">學習進度</button>
         </div>
         
@@ -223,6 +270,7 @@
                     <option value="adverb">副詞</option>
                     <option value="grammar">文法</option>
                     <option value="custom">自定義ID範圍</option>
+                    <option value="favorite">收藏單字</option>
                 </select>
             </div>
             <div class="setting-group" id="customRangeGroup" style="display:none">
@@ -254,6 +302,7 @@
                     <option value="adverb">副詞</option>
                     <option value="grammar">文法</option>
                     <option value="custom">自定義ID範圍</option>
+                    <option value="favorite">收藏單字</option>
                 </select>
             </div>
             <div class="setting-group" id="studyCustomRangeGroup" style="display:none">
@@ -266,12 +315,17 @@
         
         <!-- 測驗畫面 -->
         <div id="quizScreen" class="screen">
+            <div class="nav-controls">
+                <button class="btn btn-secondary" onclick="app.showScreen('mainMenu')">回首頁</button>
+                <button class="btn btn-danger" onclick="app.endQuiz()">提前結束</button>
+            </div>
             <div class="progress" id="progressText">1/10</div>
             <h1>測驗中</h1>
             <div class="quiz-area">
                 <div class="question" id="currentQuestion">
                     <span id="questionText"></span>
                     <button class="speak-btn" onclick="app.speakCurrentWord()">🔊</button>
+                    <button class="favorite-btn" id="quizFavoriteBtn" onclick="app.toggleFavorite()">☆</button>
                 </div>
                 <div class="options" id="optionsContainer"></div>
                 <div class="answer" id="answerDisplay"></div>
@@ -284,18 +338,34 @@
         
         <!-- 背誦畫面 -->
         <div id="studyScreen" class="screen">
+            <div class="nav-controls">
+                <button class="btn btn-secondary" onclick="app.showScreen('mainMenu')">回首頁</button>
+                <button class="btn btn-danger" onclick="app.endStudy()">提前結束</button>
+            </div>
             <div class="progress" id="studyProgressText">1/10</div>
             <h1>背誦中</h1>
             <div class="quiz-area">
                 <div class="question" id="studyQuestion">
                     <span id="studyQuestionText"></span>
                     <button class="speak-btn" onclick="app.speakCurrentStudyWord()">🔊</button>
+                    <button class="favorite-btn" id="studyFavoriteBtn" onclick="app.toggleStudyFavorite()">☆</button>
                 </div>
                 <div class="answer" id="studyAnswerDisplay"></div>
                 <div class="controls">
                     <button class="btn" onclick="app.showStudyAnswer()">顯示解答</button>
                     <button class="btn btn-secondary" onclick="app.nextStudyWord()">下一個</button>
                 </div>
+            </div>
+        </div>
+        
+        <!-- 收藏單字畫面 -->
+        <div id="favoriteScreen" class="screen">
+            <h1>收藏單字</h1>
+            <div id="favoriteList"></div>
+            <div class="controls">
+                <button class="btn" onclick="app.startQuizFromFavorites()">測驗收藏單字</button>
+                <button class="btn" onclick="app.startStudyFromFavorites()">背誦收藏單字</button>
+                <button class="btn btn-secondary" onclick="app.showScreen('mainMenu')">返回</button>
             </div>
         </div>
         
@@ -310,199 +380,6 @@
     <script>
         // 使用命名空間避免變數衝突
         const app = {
-            // 單字資料庫
-            vocabularyData: {
-                nouns: [
-                    {
-                        "id": "N001",
-                        "hiragana": "さくら",
-                        "kanji": "桜",
-                        "meaning": "櫻花",
-                        "usage": "日本の桜はとても美しい。"
-                    },
-                    {
-                        "id": "N002", 
-                        "hiragana": "つき",
-                        "kanji": "月",
-                        "meaning": "月亮",
-                        "usage": "今夜の月は丸い。"
-                    },
-                    {
-                        "id": "N003",
-                        "hiragana": "はな",
-                        "kanji": "花",
-                        "meaning": "花",
-                        "usage": "庭にきれいな花が咲いている。"
-                    },
-                    {
-                        "id": "N004",
-                        "hiragana": "いえ",
-                        "kanji": "家",
-                        "meaning": "家",
-                        "usage": "私の家は駅の近くです。"
-                    },
-                    {
-                        "id": "N005",
-                        "hiragana": "がっこう",
-                        "kanji": "學校",
-                        "meaning": "學校",
-                        "usage": "學校へ行く。"
-                    }
-                ],
-                
-                verbs: [
-                    {
-                        "id": "V001",
-                        "hiragana": "たべる",
-                        "kanji": "食べる",
-                        "meaning": "吃",
-                        "usage": "ご飯を食べる"
-                    },
-                    {
-                        "id": "V002",
-                        "hiragana": "のむ", 
-                        "kanji": "飲む",
-                        "meaning": "喝",
-                        "usage": "水を飲む"
-                    },
-                    {
-                        "id": "V003",
-                        "hiragana": "いく",
-                        "kanji": "行く",
-                        "meaning": "去",
-                        "usage": "學校へ行く"
-                    },
-                    {
-                        "id": "V004",
-                        "hiragana": "くる",
-                        "kanji": "來る",
-                        "meaning": "來",
-                        "usage": "日本へ來る"
-                    },
-                    {
-                        "id": "V005",
-                        "hiragana": "みる",
-                        "kanji": "見る",
-                        "meaning": "看",
-                        "usage": "テレビを見る"
-                    }
-                ],
-                
-                adjectives: [
-                    {
-                        "id": "AJ001",
-                        "hiragana": "うつくしい",
-                        "kanji": "美しい",
-                        "meaning": "美麗的",
-                        "usage": "美しい景色"
-                    },
-                    {
-                        "id": "AJ002",
-                        "hiragana": "おおきい",
-                        "kanji": "大きい",
-                        "meaning": "大的",
-                        "usage": "大きい家"
-                    },
-                    {
-                        "id": "AJ003",
-                        "hiragana": "ちいさい",
-                        "kanji": "小さい",
-                        "meaning": "小的",
-                        "usage": "小さい犬"
-                    },
-                    {
-                        "id": "AJ004",
-                        "hiragana": "たのしい",
-                        "kanji": "楽しい",
-                        "meaning": "快樂的",
-                        "usage": "楽しい旅行"
-                    },
-                    {
-                        "id": "AJ005",
-                        "hiragana": "おいしい",
-                        "kanji": null,
-                        "meaning": "美味的",
-                        "usage": "おいしい料理"
-                    }
-                ],
-                
-                adverbs: [
-                    {
-                        "id": "AV001",
-                        "hiragana": "ゆっくり",
-                        "kanji": null,
-                        "meaning": "慢慢地",
-                        "usage": "ゆっくり話す"
-                    },
-                    {
-                        "id": "AV002",
-                        "hiragana": "はやく",
-                        "kanji": "早く",
-                        "meaning": "快速地",
-                        "usage": "早く走る"
-                    },
-                    {
-                        "id": "AV003",
-                        "hiragana": "とても",
-                        "kanji": null,
-                        "meaning": "非常",
-                        "usage": "とても美しい"
-                    },
-                    {
-                        "id": "AV004",
-                        "hiragana": "すこし",
-                        "kanji": "少し",
-                        "meaning": "一點",
-                        "usage": "少し待つ"
-                    },
-                    {
-                        "id": "AV005",
-                        "hiragana": "よく",
-                        "kanji": null,
-                        "meaning": "經常",
-                        "usage": "よく行く"
-                    }
-                ],
-                
-                grammar: [
-                    {
-                        "id": "G001",
-                        "hiragana": "～てください",
-                        "kanji": null,
-                        "meaning": "請～",
-                        "usage": "座ってください。"
-                    },
-                    {
-                        "id": "G002",
-                        "hiragana": "～たい",
-                        "kanji": null,
-                        "meaning": "想要～",
-                        "usage": "食べたい。"
-                    },
-                    {
-                        "id": "G003",
-                        "hiragana": "～なければならない",
-                        "kanji": null,
-                        "meaning": "必須～",
-                        "usage": "勉強しなければならない。"
-                    },
-                    {
-                        "id": "G004",
-                        "hiragana": "～てもいい",
-                        "kanji": null,
-                        "meaning": "可以～",
-                        "usage": "帰ってもいいですか。"
-                    },
-                    {
-                        "id": "G005",
-                        "hiragana": "～てはいけない",
-                        "kanji": null,
-                        "meaning": "不可以～",
-                        "usage": "ここでタバコを吸ってはいけない。"
-                    }
-                ]
-            },
-
             // 全域變數
             currentVocab: [],
             currentQuestionIndex: 0,
@@ -511,6 +388,7 @@
             studyWords: [],
             currentStudyIndex: 0,
             isLocal: window.location.protocol === 'file:',
+            vocabularyData: {},
 
             // 初始化
             init: function() {
@@ -518,6 +396,9 @@
                 if (this.isLocal) {
                     document.getElementById('envBadge').style.display = 'block';
                 }
+                
+                // 載入單字資料庫
+                this.loadVocabularyData();
                 
                 // 只在伺服器環境註冊 Service Worker
                 if ('serviceWorker' in navigator && !this.isLocal) {
@@ -533,13 +414,110 @@
                 }
                 
                 // 事件監聽
-                document.getElementById('quizType').addEventListener('change', this.toggleCustomRange);
-                document.getElementById('studyType').addEventListener('change', this.toggleStudyCustomRange);
+                document.getElementById('quizType').addEventListener('change', this.toggleCustomRange.bind(this));
+                document.getElementById('studyType').addEventListener('change', this.toggleStudyCustomRange.bind(this));
                 
-                // 載入學習進度
+                // 載入學習進度和收藏
                 this.loadProgress();
+                this.loadFavorites();
                 
                 console.log('執行環境:', this.isLocal ? '本地模式' : '伺服器模式');
+            },
+
+            // 載入單字資料庫
+            loadVocabularyData: function() {
+                if (this.isLocal) {
+                    // 本地模式：嘗試從外部JS檔案載入
+                    this.loadExternalVocabulary();
+                } else {
+                    // 伺服器模式：使用內建資料
+                    this.loadBuiltInVocabulary();
+                }
+            },
+
+            // 載入外部單字資料庫
+            loadExternalVocabulary: function() {
+                // 嘗試載入各類別的單字資料
+                const files = [
+                    { name: 'nouns', url: 'data/nouns.js' },
+                    { name: 'verbs', url: 'data/verbs.js' },
+                    { name: 'adjectives', url: 'data/adjectives.js' },
+                    { name: 'adverbs', url: 'data/adverbs.js' },
+                    { name: 'grammar', url: 'data/grammar.js' }
+                ];
+
+                let loadedCount = 0;
+                
+                files.forEach(file => {
+                    const script = document.createElement('script');
+                    script.src = file.url;
+                    script.onload = () => {
+                        console.log(`已載入 ${file.name} 資料`);
+                        loadedCount++;
+                        // 將載入的資料合併到 vocabularyData
+                        switch(file.name) {
+                            case 'nouns':
+                                this.vocabularyData.nouns = window.nounsData || [];
+                                break;
+                            case 'verbs':
+                                this.vocabularyData.verbs = window.verbsData || [];
+                                break;
+                            case 'adjectives':
+                                this.vocabularyData.adjectives = window.adjectivesData || [];
+                                break;
+                            case 'adverbs':
+                                this.vocabularyData.adverbs = window.adverbsData || [];
+                                break;
+                            case 'grammar':
+                                this.vocabularyData.grammar = window.grammarData || [];
+                                break;
+                        }
+                        
+                        if (loadedCount === files.length) {
+                            console.log('所有單字資料載入完成', this.vocabularyData);
+                            // 如果外部檔案載入失敗，使用內建資料
+                            this.ensureVocabularyData();
+                        }
+                    };
+                    script.onerror = () => {
+                        console.warn(`無法載入 ${file.name} 資料，使用內建資料`);
+                        loadedCount++;
+                        if (loadedCount === files.length) {
+                            this.loadBuiltInVocabulary();
+                        }
+                    };
+                    document.head.appendChild(script);
+                });
+            },
+
+            // 確保有單字資料
+            ensureVocabularyData: function() {
+                if (!this.vocabularyData.nouns || this.vocabularyData.nouns.length === 0) {
+                    this.loadBuiltInVocabulary();
+                }
+            },
+
+            // 載入內建單字資料
+            loadBuiltInVocabulary: function() {
+                // 這裡放置您的內建單字資料
+                this.vocabularyData = {
+                    nouns: [
+                        // 您的名詞資料...
+                    ],
+                    verbs: [
+                        // 動詞資料...
+                    ],
+                    adjectives: [
+                        // 形容詞資料...
+                    ],
+                    adverbs: [
+                        // 副詞資料...
+                    ],
+                    grammar: [
+                        // 文法資料...
+                    ]
+                };
+                console.log('使用內建單字資料');
             },
 
             // 顯示畫面
@@ -551,6 +529,8 @@
                 
                 if (screenId === 'progressScreen') {
                     this.showProgressStats();
+                } else if (screenId === 'favoriteScreen') {
+                    this.showFavoriteList();
                 }
             },
 
@@ -607,30 +587,66 @@
                 this.showStudyWord();
             },
 
+            // 從收藏開始測驗
+            startQuizFromFavorites: function() {
+                const favorites = this.getFavorites();
+                if (favorites.length === 0) {
+                    alert('還沒有收藏任何單字！');
+                    return;
+                }
+                
+                this.currentVocab = favorites;
+                this.currentQuestionIndex = 0;
+                this.score = 0;
+                this.quizMode = true;
+                
+                this.showScreen('quizScreen');
+                this.showQuestion();
+            },
+
+            // 從收藏開始背誦
+            startStudyFromFavorites: function() {
+                const favorites = this.getFavorites();
+                if (favorites.length === 0) {
+                    alert('還沒有收藏任何單字！');
+                    return;
+                }
+                
+                this.studyWords = favorites;
+                this.currentStudyIndex = 0;
+                this.quizMode = false;
+                
+                this.showScreen('studyScreen');
+                this.showStudyWord();
+            },
+
             // 載入單字資料
             loadVocabulary: function(type, range) {
                 let words = [];
                 switch(type) {
                     case 'noun': 
-                        words = this.vocabularyData.nouns;
+                        words = this.vocabularyData.nouns || [];
                         break;
                     case 'verb': 
-                        words = this.vocabularyData.verbs;
+                        words = this.vocabularyData.verbs || [];
                         break;
                     case 'adjective': 
-                        words = this.vocabularyData.adjectives;
+                        words = this.vocabularyData.adjectives || [];
                         break;
                     case 'adverb': 
-                        words = this.vocabularyData.adverbs;
+                        words = this.vocabularyData.adverbs || [];
                         break;
                     case 'grammar': 
-                        words = this.vocabularyData.grammar;
+                        words = this.vocabularyData.grammar || [];
                         break;
                     case 'custom': 
                         words = this.loadCustomRange(range);
                         break;
+                    case 'favorite':
+                        words = this.getFavorites();
+                        break;
                     default: 
-                        words = this.vocabularyData.nouns;
+                        words = this.vocabularyData.nouns || [];
                 }
                 
                 return words;
@@ -639,11 +655,11 @@
             // 載入自定義範圍
             loadCustomRange: function(range) {
                 const allWords = [
-                    ...this.vocabularyData.nouns,
-                    ...this.vocabularyData.verbs,
-                    ...this.vocabularyData.adjectives,
-                    ...this.vocabularyData.adverbs,
-                    ...this.vocabularyData.grammar
+                    ...(this.vocabularyData.nouns || []),
+                    ...(this.vocabularyData.verbs || []),
+                    ...(this.vocabularyData.adjectives || []),
+                    ...(this.vocabularyData.adverbs || []),
+                    ...(this.vocabularyData.grammar || [])
                 ];
                 
                 if (range) {
@@ -665,6 +681,9 @@
                 document.getElementById('answerDisplay').style.display = 'none';
                 document.getElementById('showAnswerBtn').style.display = 'block';
                 document.getElementById('nextBtn').style.display = 'none';
+                
+                // 更新收藏按鈕狀態
+                this.updateFavoriteButton('quizFavoriteBtn', current);
                 
                 // 生成選項
                 const options = this.generateOptions(current);
@@ -690,6 +709,17 @@
                 document.getElementById('studyProgressText').textContent = 
                     `${this.currentStudyIndex + 1}/${this.studyWords.length}`;
                 document.getElementById('studyAnswerDisplay').style.display = 'none';
+                
+                // 更新收藏按鈕狀態
+                this.updateFavoriteButton('studyFavoriteBtn', current);
+            },
+
+            // 更新收藏按鈕狀態
+            updateFavoriteButton: function(buttonId, word) {
+                const button = document.getElementById(buttonId);
+                const isFavorite = this.isFavorite(word);
+                button.textContent = isFavorite ? '★' : '☆';
+                button.style.color = isFavorite ? '#e53e3e' : '#718096';
             },
 
             // 生成選項
@@ -734,7 +764,8 @@
                 answerDiv.innerHTML = `
                     <strong>${current.kanji || current.hiragana}</strong><br>
                     中文: ${current.meaning}<br>
-                    ${current.usage ? `用法: ${current.usage}` : ''}
+                    用法: ${current.usage}<br>
+                    <em>${current.particle_explanation}</em>
                 `;
                 answerDiv.style.display = 'block';
             },
@@ -746,7 +777,8 @@
                 answerDiv.innerHTML = `
                     <strong>${current.kanji || current.hiragana}</strong><br>
                     中文: ${current.meaning}<br>
-                    ${current.usage ? `用法: ${current.usage}` : ''}
+                    用法: ${current.usage}<br>
+                    <em>${current.particle_explanation}</em>
                 `;
                 answerDiv.style.display = 'block';
             },
@@ -780,6 +812,85 @@
                 // 儲存進度
                 this.saveProgress(this.score, this.currentVocab.length);
                 this.showScreen('mainMenu');
+            },
+
+            // 提前結束測驗
+            endQuiz: function() {
+                if (confirm('確定要提前結束測驗嗎？')) {
+                    const percentage = Math.round((this.score / (this.currentQuestionIndex + 1)) * 100);
+                    alert(`測驗提前結束！\n得分: ${this.score}/${this.currentQuestionIndex + 1} (${percentage}%)`);
+                    this.showScreen('mainMenu');
+                }
+            },
+
+            // 提前結束背誦
+            endStudy: function() {
+                if (confirm('確定要提前結束背誦嗎？')) {
+                    this.showScreen('mainMenu');
+                }
+            },
+
+            // 收藏功能
+            toggleFavorite: function() {
+                const current = this.currentVocab[this.currentQuestionIndex];
+                this.toggleFavoriteWord(current);
+                this.updateFavoriteButton('quizFavoriteBtn', current);
+            },
+
+            toggleStudyFavorite: function() {
+                const current = this.studyWords[this.currentStudyIndex];
+                this.toggleFavoriteWord(current);
+                this.updateFavoriteButton('studyFavoriteBtn', current);
+            },
+
+            toggleFavoriteWord: function(word) {
+                const favorites = this.getFavorites();
+                const index = favorites.findIndex(fav => fav.id === word.id);
+                
+                if (index === -1) {
+                    // 加入收藏
+                    favorites.push(word);
+                } else {
+                    // 移除收藏
+                    favorites.splice(index, 1);
+                }
+                
+                this.saveFavorites(favorites);
+            },
+
+            isFavorite: function(word) {
+                const favorites = this.getFavorites();
+                return favorites.some(fav => fav.id === word.id);
+            },
+
+            getFavorites: function() {
+                return JSON.parse(localStorage.getItem('vocabFavorites') || '[]');
+            },
+
+            saveFavorites: function(favorites) {
+                localStorage.setItem('vocabFavorites', JSON.stringify(favorites));
+            },
+
+            showFavoriteList: function() {
+                const favorites = this.getFavorites();
+                const listDiv = document.getElementById('favoriteList');
+                
+                if (favorites.length === 0) {
+                    listDiv.innerHTML = '<p>還沒有收藏任何單字</p>';
+                    return;
+                }
+                
+                let html = '<div class="stats">';
+                favorites.forEach(word => {
+                    html += `
+                        <div style="margin-bottom: 10px; padding: 10px; border-bottom: 1px solid #e2e8f0;">
+                            <strong>${word.id}: ${word.kanji || word.hiragana}</strong> - ${word.meaning}
+                            <span class="favorite-star">★</span>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+                listDiv.innerHTML = html;
             },
 
             // 文字轉語音
